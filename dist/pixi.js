@@ -1,6 +1,6 @@
 /*!
- * @inteliphy/pixi - v4.8.9
- * Compiled Fri, 07 Jun 2019 12:05:41 UTC
+ * @inteliphy/pixi - v4.8.15
+ * Compiled Fri, 07 Jun 2019 12:58:00 UTC
  *
  * @inteliphy/pixi is licensed under the MIT License.
  * http://www.opensource.org/licenses/mit-license
@@ -8386,7 +8386,7 @@ function checkPrecision(src, def) {
 
             return copy;
         }
-    } else if (src.trim().substring(0, 10) !== '#extension' && src.trim().substring(0, 9) !== 'precision') {
+    } else if (src.trim().substring(0, 6) !== '#ifdef' && src.trim().substring(0, 9) !== 'precision') {
         return 'precision ' + def + ' float;\n' + src;
     }
 
@@ -8502,7 +8502,7 @@ exports.__esModule = true;
  * @name VERSION
  * @type {string}
  */
-var VERSION = exports.VERSION = '4.8.9';
+var VERSION = exports.VERSION = '4.8.15';
 
 /**
  * Two Pi.
