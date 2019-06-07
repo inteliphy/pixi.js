@@ -1,6 +1,6 @@
 {
-  "name": "pixi.js",
-  "version": "4.5.3",
+  "name": "@inteliphy/pixi",
+  "version": "4.8.9",
   "description": "Pixi.js is a fast lightweight 2D library that works across all devices.",
   "author": "Mat Groves",
   "contributors": [
@@ -11,11 +11,13 @@
   ],
   "main": "./lib/index.js",
   "homepage": "http://goodboydigital.com/",
-  "bugs": "https://github.com/pixijs/pixi.js/issues",
+  "bugs": {
+    "url": "https://github.com/pixijs/pixi.js/issues"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/pixijs/pixi.js.git"
+    "url": "git+https://github.com/pixijs/pixi.js.git"
   },
   "scripts": {
     "clean": "rimraf dist lib && mkdirp dist && mkdir lib",
@@ -86,5 +88,9 @@
     "pixify": "^1.7.0",
     "rimraf": "^2.5.3",
     "watch": "^0.19.1"
+  },
+  "directories": {
+    "lib": "lib",
+    "test": "test"
   }
 }
