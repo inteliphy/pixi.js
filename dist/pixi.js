@@ -1,11 +1,11 @@
 /*!
- * pixi.js - v4.5.3
- * Compiled Mon, 12 Jun 2017 14:44:16 UTC
+ * @inteliphy/pixi - v4.8.9
+ * Compiled Fri, 07 Jun 2019 12:05:41 UTC
  *
- * pixi.js is licensed under the MIT License.
+ * @inteliphy/pixi is licensed under the MIT License.
  * http://www.opensource.org/licenses/mit-license
  */
-(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.PIXI = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.PIXI = f()}})(function(){var define,module,exports;return (function(){function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s}return e})()({1:[function(require,module,exports){
 /**
  * Bit twiddling hacks for JavaScript.
  *
@@ -215,6 +215,7 @@ exports.nextCombination = function(v) {
 'use strict';
 
 module.exports = earcut;
+module.exports.default = earcut;
 
 function earcut(data, holeIndices, dim) {
 
@@ -225,9 +226,9 @@ function earcut(data, holeIndices, dim) {
         outerNode = linkedList(data, 0, outerLen, dim, true),
         triangles = [];
 
-    if (!outerNode) return triangles;
+    if (!outerNode || outerNode.next === outerNode.prev) return triangles;
 
-    var minX, minY, maxX, maxY, x, y, size;
+    var minX, minY, maxX, maxY, x, y, invSize;
 
     if (hasHoles) outerNode = eliminateHoles(data, holeIndices, outerNode, dim);
 
@@ -245,11 +246,12 @@ function earcut(data, holeIndices, dim) {
             if (y > maxY) maxY = y;
         }
 
-        // minX, minY and size are later used to transform coords into integers for z-order calculation
-        size = Math.max(maxX - minX, maxY - minY);
+        // minX, minY and invSize are later used to transform coords into integers for z-order calculation
+        invSize = Math.max(maxX - minX, maxY - minY);
+        invSize = invSize !== 0 ? 1 / invSize : 0;
     }
 
-    earcutLinked(outerNode, triangles, dim, minX, minY, size);
+    earcutLinked(outerNode, triangles, dim, minX, minY, invSize);
 
     return triangles;
 }
@@ -285,7 +287,7 @@ function filterPoints(start, end) {
         if (!p.steiner && (equals(p, p.next) || area(p.prev, p, p.next) === 0)) {
             removeNode(p);
             p = end = p.prev;
-            if (p === p.next) return null;
+            if (p === p.next) break;
             again = true;
 
         } else {
@@ -297,11 +299,11 @@ function filterPoints(start, end) {
 }
 
 // main ear slicing loop which triangulates a polygon (given as a linked list)
-function earcutLinked(ear, triangles, dim, minX, minY, size, pass) {
+function earcutLinked(ear, triangles, dim, minX, minY, invSize, pass) {
     if (!ear) return;
 
     // interlink polygon nodes in z-order
-    if (!pass && size) indexCurve(ear, minX, minY, size);
+    if (!pass && invSize) indexCurve(ear, minX, minY, invSize);
 
     var stop = ear,
         prev, next;
@@ -311,7 +313,7 @@ function earcutLinked(ear, triangles, dim, minX, minY, size, pass) {
         prev = ear.prev;
         next = ear.next;
 
-        if (size ? isEarHashed(ear, minX, minY, size) : isEar(ear)) {
+        if (invSize ? isEarHashed(ear, minX, minY, invSize) : isEar(ear)) {
             // cut off the triangle
             triangles.push(prev.i / dim);
             triangles.push(ear.i / dim);
@@ -319,7 +321,7 @@ function earcutLinked(ear, triangles, dim, minX, minY, size, pass) {
 
             removeNode(ear);
 
-            // skipping the next vertice leads to less sliver triangles
+            // skipping the next vertex leads to less sliver triangles
             ear = next.next;
             stop = next.next;
 
@@ -332,16 +334,16 @@ function earcutLinked(ear, triangles, dim, minX, minY, size, pass) {
         if (ear === stop) {
             // try filtering points and slicing again
             if (!pass) {
-                earcutLinked(filterPoints(ear), triangles, dim, minX, minY, size, 1);
+                earcutLinked(filterPoints(ear), triangles, dim, minX, minY, invSize, 1);
 
             // if this didn't work, try curing all small self-intersections locally
             } else if (pass === 1) {
                 ear = cureLocalIntersections(ear, triangles, dim);
-                earcutLinked(ear, triangles, dim, minX, minY, size, 2);
+                earcutLinked(ear, triangles, dim, minX, minY, invSize, 2);
 
             // as a last resort, try splitting the remaining polygon into two
             } else if (pass === 2) {
-                splitEarcut(ear, triangles, dim, minX, minY, size);
+                splitEarcut(ear, triangles, dim, minX, minY, invSize);
             }
 
             break;
@@ -369,7 +371,7 @@ function isEar(ear) {
     return true;
 }
 
-function isEarHashed(ear, minX, minY, size) {
+function isEarHashed(ear, minX, minY, invSize) {
     var a = ear.prev,
         b = ear,
         c = ear.next;
@@ -383,27 +385,39 @@ function isEarHashed(ear, minX, minY, size) {
         maxTY = a.y > b.y ? (a.y > c.y ? a.y : c.y) : (b.y > c.y ? b.y : c.y);
 
     // z-order range for the current triangle bbox;
-    var minZ = zOrder(minTX, minTY, minX, minY, size),
-        maxZ = zOrder(maxTX, maxTY, minX, minY, size);
+    var minZ = zOrder(minTX, minTY, minX, minY, invSize),
+        maxZ = zOrder(maxTX, maxTY, minX, minY, invSize);
 
-    // first look for points inside the triangle in increasing z-order
-    var p = ear.nextZ;
+    var p = ear.prevZ,
+        n = ear.nextZ;
 
-    while (p && p.z <= maxZ) {
+    // look for points inside the triangle in both directions
+    while (p && p.z >= minZ && n && n.z <= maxZ) {
         if (p !== ear.prev && p !== ear.next &&
             pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, p.x, p.y) &&
             area(p.prev, p, p.next) >= 0) return false;
-        p = p.nextZ;
+        p = p.prevZ;
+
+        if (n !== ear.prev && n !== ear.next &&
+            pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, n.x, n.y) &&
+            area(n.prev, n, n.next) >= 0) return false;
+        n = n.nextZ;
     }
 
-    // then look for points in decreasing z-order
-    p = ear.prevZ;
-
+    // look for remaining points in decreasing z-order
     while (p && p.z >= minZ) {
         if (p !== ear.prev && p !== ear.next &&
             pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, p.x, p.y) &&
             area(p.prev, p, p.next) >= 0) return false;
         p = p.prevZ;
+    }
+
+    // look for remaining points in increasing z-order
+    while (n && n.z <= maxZ) {
+        if (n !== ear.prev && n !== ear.next &&
+            pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, n.x, n.y) &&
+            area(n.prev, n, n.next) >= 0) return false;
+        n = n.nextZ;
     }
 
     return true;
@@ -435,7 +449,7 @@ function cureLocalIntersections(start, triangles, dim) {
 }
 
 // try splitting polygon into two and triangulate them independently
-function splitEarcut(start, triangles, dim, minX, minY, size) {
+function splitEarcut(start, triangles, dim, minX, minY, invSize) {
     // look for a valid diagonal that divides the polygon into two
     var a = start;
     do {
@@ -450,8 +464,8 @@ function splitEarcut(start, triangles, dim, minX, minY, size) {
                 c = filterPoints(c, c.next);
 
                 // run earcut on each half
-                earcutLinked(a, triangles, dim, minX, minY, size);
-                earcutLinked(c, triangles, dim, minX, minY, size);
+                earcutLinked(a, triangles, dim, minX, minY, invSize);
+                earcutLinked(c, triangles, dim, minX, minY, invSize);
                 return;
             }
             b = b.next;
@@ -508,7 +522,7 @@ function findHoleBridge(hole, outerNode) {
     // find a segment intersected by a ray from the hole's leftmost point to the left;
     // segment's endpoint with lesser x will be potential connection point
     do {
-        if (hy <= p.y && hy >= p.next.y) {
+        if (hy <= p.y && hy >= p.next.y && p.next.y !== p.y) {
             var x = p.x + (hy - p.y) * (p.next.x - p.x) / (p.next.y - p.y);
             if (x <= hx && x > qx) {
                 qx = x;
@@ -539,7 +553,7 @@ function findHoleBridge(hole, outerNode) {
     p = m.next;
 
     while (p !== stop) {
-        if (hx >= p.x && p.x >= mx &&
+        if (hx >= p.x && p.x >= mx && hx !== p.x &&
                 pointInTriangle(hy < my ? hx : qx, hy, mx, my, hy < my ? qx : hx, hy, p.x, p.y)) {
 
             tan = Math.abs(hy - p.y) / (hx - p.x); // tangential
@@ -557,10 +571,10 @@ function findHoleBridge(hole, outerNode) {
 }
 
 // interlink polygon nodes in z-order
-function indexCurve(start, minX, minY, size) {
+function indexCurve(start, minX, minY, invSize) {
     var p = start;
     do {
-        if (p.z === null) p.z = zOrder(p.x, p.y, minX, minY, size);
+        if (p.z === null) p.z = zOrder(p.x, p.y, minX, minY, invSize);
         p.prevZ = p.prev;
         p.nextZ = p.next;
         p = p.next;
@@ -593,20 +607,11 @@ function sortLinked(list) {
                 q = q.nextZ;
                 if (!q) break;
             }
-
             qSize = inSize;
 
             while (pSize > 0 || (qSize > 0 && q)) {
 
-                if (pSize === 0) {
-                    e = q;
-                    q = q.nextZ;
-                    qSize--;
-                } else if (qSize === 0 || !q) {
-                    e = p;
-                    p = p.nextZ;
-                    pSize--;
-                } else if (p.z <= q.z) {
+                if (pSize !== 0 && (qSize === 0 || !q || p.z <= q.z)) {
                     e = p;
                     p = p.nextZ;
                     pSize--;
@@ -634,11 +639,11 @@ function sortLinked(list) {
     return list;
 }
 
-// z-order of a point given coords and size of the data bounding box
-function zOrder(x, y, minX, minY, size) {
+// z-order of a point given coords and inverse of the longer side of data bbox
+function zOrder(x, y, minX, minY, invSize) {
     // coords are transformed into non-negative 15-bit integer range
-    x = 32767 * (x - minX) / size;
-    y = 32767 * (y - minY) / size;
+    x = 32767 * (x - minX) * invSize;
+    y = 32767 * (y - minY) * invSize;
 
     x = (x | (x << 8)) & 0x00FF00FF;
     x = (x | (x << 4)) & 0x0F0F0F0F;
@@ -722,7 +727,8 @@ function middleInside(a, b) {
         px = (a.x + b.x) / 2,
         py = (a.y + b.y) / 2;
     do {
-        if (((p.y > py) !== (p.next.y > py)) && (px < (p.next.x - p.x) * (py - p.y) / (p.next.y - p.y) + p.x))
+        if (((p.y > py) !== (p.next.y > py)) && p.next.y !== p.y &&
+                (px < (p.next.x - p.x) * (py - p.y) / (p.next.y - p.y) + p.x))
             inside = !inside;
         p = p.next;
     } while (p !== a);
@@ -779,14 +785,14 @@ function removeNode(p) {
 }
 
 function Node(i, x, y) {
-    // vertice index in coordinates array
+    // vertex index in coordinates array
     this.i = i;
 
     // vertex coordinates
     this.x = x;
     this.y = y;
 
-    // previous and next vertice nodes in a polygon ring
+    // previous and next vertex nodes in a polygon ring
     this.prev = null;
     this.next = null;
 
@@ -2143,6 +2149,7 @@ Framebuffer.createRGBA = function(gl, width, height, data)
     //now create the framebuffer object and attach the texture to it.
     var fbo = new Framebuffer(gl, width, height);
     fbo.enableTexture(texture);
+    //fbo.enableStencil(); // get this back on soon!
 
     //fbo.enableStencil(); // get this back on soon!
 
@@ -2193,7 +2200,7 @@ var compileProgram = require('./shader/compileProgram'),
  * @param gl {WebGLRenderingContext}
  * @param vertexSrc {string|string[]} The vertex shader source as an array of strings.
  * @param fragmentSrc {string|string[]} The fragment shader source as an array of strings.
- * @param precision {precision]} The float precision of the shader. Options are 'lowp', 'mediump' or 'highp'.
+ * @param precision {string} The float precision of the shader. Options are 'lowp', 'mediump' or 'highp'.
  * @param attributeLocations {object} A key value pair showing which location eact attribute should sit eg {position:0, uvs:1}
  */
 var Shader = function(gl, vertexSrc, fragmentSrc, precision, attributeLocations)
@@ -2247,10 +2254,13 @@ var Shader = function(gl, vertexSrc, fragmentSrc, precision, attributeLocations)
 };
 /**
  * Uses this shader
+ * 
+ * @return {PIXI.glCore.GLShader} Returns itself.
  */
 Shader.prototype.bind = function()
 {
 	this.gl.useProgram(this.program);
+	return this;
 };
 
 /**
@@ -2700,11 +2710,15 @@ VertexArrayObject.prototype.bind = function()
         {
             this.dirty = false;
             this.activate();
+            return this;
+        }
+        if (this.indexBuffer)
+        {
+            this.indexBuffer.bind();
         }
     }
     else
     {
-
         this.activate();
     }
 
@@ -3268,33 +3282,68 @@ var generateUniformAccessObject = function(gl, uniformData)
 
 var generateGetter = function(name)
 {
-	var template = getterTemplate.replace('%%', name);
-	return new Function(template); // jshint ignore:line
+    return function() {
+        return this.data[name].value;
+    };
 };
 
-var generateSetter = function(name, uniform)
+var GLSL_SINGLE_SETTERS = {
+    float: function setSingleFloat(gl, location, value) { gl.uniform1f(location, value); },
+    vec2: function setSingleVec2(gl, location, value) { gl.uniform2f(location, value[0], value[1]); },
+    vec3: function setSingleVec3(gl, location, value) { gl.uniform3f(location, value[0], value[1], value[2]); },
+    vec4: function setSingleVec4(gl, location, value) { gl.uniform4f(location, value[0], value[1], value[2], value[3]); },
+
+    int: function setSingleInt(gl, location, value) { gl.uniform1i(location, value); },
+    ivec2: function setSingleIvec2(gl, location, value) { gl.uniform2i(location, value[0], value[1]); },
+    ivec3: function setSingleIvec3(gl, location, value) { gl.uniform3i(location, value[0], value[1], value[2]); },
+    ivec4: function setSingleIvec4(gl, location, value) { gl.uniform4i(location, value[0], value[1], value[2], value[3]); },
+
+    bool: function setSingleBool(gl, location, value) { gl.uniform1i(location, value); },
+    bvec2: function setSingleBvec2(gl, location, value) { gl.uniform2i(location, value[0], value[1]); },
+    bvec3: function setSingleBvec3(gl, location, value) { gl.uniform3i(location, value[0], value[1], value[2]); },
+    bvec4: function setSingleBvec4(gl, location, value) { gl.uniform4i(location, value[0], value[1], value[2], value[3]); },
+
+    mat2: function setSingleMat2(gl, location, value) { gl.uniformMatrix2fv(location, false, value); },
+    mat3: function setSingleMat3(gl, location, value) { gl.uniformMatrix3fv(location, false, value); },
+    mat4: function setSingleMat4(gl, location, value) { gl.uniformMatrix4fv(location, false, value); },
+
+    sampler2D: function setSingleSampler2D(gl, location, value) { gl.uniform1i(location, value); },
+};
+
+var GLSL_ARRAY_SETTERS = {
+    float: function setFloatArray(gl, location, value) { gl.uniform1fv(location, value); },
+    vec2: function setVec2Array(gl, location, value) { gl.uniform2fv(location, value); },
+    vec3: function setVec3Array(gl, location, value) { gl.uniform3fv(location, value); },
+    vec4: function setVec4Array(gl, location, value) { gl.uniform4fv(location, value); },
+    int: function setIntArray(gl, location, value) { gl.uniform1iv(location, value); },
+    ivec2: function setIvec2Array(gl, location, value) { gl.uniform2iv(location, value); },
+    ivec3: function setIvec3Array(gl, location, value) { gl.uniform3iv(location, value); },
+    ivec4: function setIvec4Array(gl, location, value) { gl.uniform4iv(location, value); },
+    bool: function setBoolArray(gl, location, value) { gl.uniform1iv(location, value); },
+    bvec2: function setBvec2Array(gl, location, value) { gl.uniform2iv(location, value); },
+    bvec3: function setBvec3Array(gl, location, value) { gl.uniform3iv(location, value); },
+    bvec4: function setBvec4Array(gl, location, value) { gl.uniform4iv(location, value); },
+    sampler2D: function setSampler2DArray(gl, location, value) { gl.uniform1iv(location, value); },
+};
+
+function generateSetter(name, uniform)
 {
-    var template = setterTemplate.replace(/%%/g, name);
-    var setTemplate;
+    return function(value) {
+        this.data[name].value = value;
+        var location = this.data[name].location;
+        if (uniform.size === 1)
+        {
+            GLSL_SINGLE_SETTERS[uniform.type](this.gl, location, value);
+        }
+        else
+        {
+            // glslSetArray(gl, location, type, value) {
+            GLSL_ARRAY_SETTERS[uniform.type](this.gl, location, value);
+        }
+    };
+}
 
-    if(uniform.size === 1)
-    {
-        setTemplate = GLSL_TO_SINGLE_SETTERS[uniform.type];
-    }
-    else
-    {
-        setTemplate = GLSL_TO_ARRAY_SETTERS[uniform.type];
-    }
-
-    if(setTemplate)
-    {
-        template += "\nthis.gl." + setTemplate + ";";
-    }
-
-  	return new Function('value', template); // jshint ignore:line
-};
-
-var getUniformGroup = function(nameTokens, uniform)
+function getUniformGroup(nameTokens, uniform)
 {
     var cur = uniform;
 
@@ -3306,63 +3355,8 @@ var getUniformGroup = function(nameTokens, uniform)
     }
 
     return cur;
-};
+}
 
-var getterTemplate = [
-    'return this.data.%%.value;',
-].join('\n');
-
-var setterTemplate = [
-    'this.data.%%.value = value;',
-    'var location = this.data.%%.location;'
-].join('\n');
-
-
-var GLSL_TO_SINGLE_SETTERS = {
-
-    'float':    'uniform1f(location, value)',
-
-    'vec2':     'uniform2f(location, value[0], value[1])',
-    'vec3':     'uniform3f(location, value[0], value[1], value[2])',
-    'vec4':     'uniform4f(location, value[0], value[1], value[2], value[3])',
-
-    'int':      'uniform1i(location, value)',
-    'ivec2':    'uniform2i(location, value[0], value[1])',
-    'ivec3':    'uniform3i(location, value[0], value[1], value[2])',
-    'ivec4':    'uniform4i(location, value[0], value[1], value[2], value[3])',
-
-    'bool':     'uniform1i(location, value)',
-    'bvec2':    'uniform2i(location, value[0], value[1])',
-    'bvec3':    'uniform3i(location, value[0], value[1], value[2])',
-    'bvec4':    'uniform4i(location, value[0], value[1], value[2], value[3])',
-
-    'mat2':     'uniformMatrix2fv(location, false, value)',
-    'mat3':     'uniformMatrix3fv(location, false, value)',
-    'mat4':     'uniformMatrix4fv(location, false, value)',
-
-    'sampler2D':'uniform1i(location, value)'
-};
-
-var GLSL_TO_ARRAY_SETTERS = {
-
-    'float':    'uniform1fv(location, value)',
-
-    'vec2':     'uniform2fv(location, value)',
-    'vec3':     'uniform3fv(location, value)',
-    'vec4':     'uniform4fv(location, value)',
-
-    'int':      'uniform1iv(location, value)',
-    'ivec2':    'uniform2iv(location, value)',
-    'ivec3':    'uniform3iv(location, value)',
-    'ivec4':    'uniform4iv(location, value)',
-
-    'bool':     'uniform1iv(location, value)',
-    'bvec2':    'uniform2iv(location, value)',
-    'bvec3':    'uniform3iv(location, value)',
-    'bvec4':    'uniform4iv(location, value)',
-
-    'sampler2D':'uniform1iv(location, value)'
-};
 
 module.exports = generateUniformAccessObject;
 
@@ -3418,7 +3412,7 @@ module.exports = mapSize;
 },{}],24:[function(require,module,exports){
 
 
-var mapSize = function(gl, type) 
+var mapType = function(gl, type) 
 {
     if(!GL_TABLE) 
     {
@@ -3461,7 +3455,7 @@ var GL_TO_GLSL_TYPES = {
   'SAMPLER_2D':  'sampler2D'  
 };
 
-module.exports = mapSize;
+module.exports = mapType;
 
 },{}],25:[function(require,module,exports){
 /**
@@ -4420,8 +4414,11 @@ module.exports = function removeItems(arr, startIdx, removeCount)
 'use strict';
 
 exports.__esModule = true;
+exports.Loader = undefined;
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
 var _miniSignals = require('mini-signals');
 
@@ -4436,8 +4433,6 @@ var _async = require('./async');
 var async = _interopRequireWildcard(_async);
 
 var _Resource = require('./Resource');
-
-var _Resource2 = _interopRequireDefault(_Resource);
 
 function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -4455,7 +4450,7 @@ var rgxExtractUrlHash = /(#[\w-]+)?$/;
  * @class
  */
 
-var Loader = function () {
+var Loader = exports.Loader = function () {
     /**
      * @param {string} [baseUrl=''] - The base url for all resources loaded by this loader.
      * @param {number} [concurrency=10] - The number of resources to load concurrently.
@@ -4508,12 +4503,15 @@ var Loader = function () {
          *
          * // This will request 'image.png?v=1&user=me&password=secret'
          * loader.add('iamge.png?v=1').load();
+         *
+         * @member {string}
          */
         this.defaultQueryString = '';
 
         /**
          * The middleware to run before loading each resource.
          *
+         * @private
          * @member {function[]}
          */
         this._beforeMiddleware = [];
@@ -4521,6 +4519,7 @@ var Loader = function () {
         /**
          * The middleware to run after loading each resource.
          *
+         * @private
          * @member {function[]}
          */
         this._afterMiddleware = [];
@@ -4528,6 +4527,7 @@ var Loader = function () {
         /**
          * The tracks the resources we are currently completing parsing for.
          *
+         * @private
          * @member {Resource[]}
          */
         this._resourcesParsing = [];
@@ -4607,49 +4607,82 @@ var Loader = function () {
          */
         this.onComplete = new _miniSignals2.default();
 
-        /**
-         * When the progress changes the loader and resource are disaptched.
-         *
-         * @memberof Loader
-         * @callback OnProgressSignal
-         * @param {Loader} loader - The loader the progress is advancing on.
-         * @param {Resource} resource - The resource that has completed or failed to cause the progress to advance.
-         */
+        // Add default before middleware
+        for (var i = 0; i < Loader._defaultBeforeMiddleware.length; ++i) {
+            this.pre(Loader._defaultBeforeMiddleware[i]);
+        }
 
-        /**
-         * When an error occurrs the loader and resource are disaptched.
-         *
-         * @memberof Loader
-         * @callback OnErrorSignal
-         * @param {Loader} loader - The loader the error happened in.
-         * @param {Resource} resource - The resource that caused the error.
-         */
-
-        /**
-         * When a load completes the loader and resource are disaptched.
-         *
-         * @memberof Loader
-         * @callback OnLoadSignal
-         * @param {Loader} loader - The loader that laoded the resource.
-         * @param {Resource} resource - The resource that has completed loading.
-         */
-
-        /**
-         * When the loader starts loading resources it dispatches this callback.
-         *
-         * @memberof Loader
-         * @callback OnStartSignal
-         * @param {Loader} loader - The loader that has started loading resources.
-         */
-
-        /**
-         * When the loader completes loading resources it dispatches this callback.
-         *
-         * @memberof Loader
-         * @callback OnCompleteSignal
-         * @param {Loader} loader - The loader that has finished loading resources.
-         */
+        // Add default after middleware
+        for (var _i = 0; _i < Loader._defaultAfterMiddleware.length; ++_i) {
+            this.use(Loader._defaultAfterMiddleware[_i]);
+        }
     }
+
+    /**
+     * When the progress changes the loader and resource are disaptched.
+     *
+     * @memberof Loader
+     * @callback OnProgressSignal
+     * @param {Loader} loader - The loader the progress is advancing on.
+     * @param {Resource} resource - The resource that has completed or failed to cause the progress to advance.
+     */
+
+    /**
+     * When an error occurrs the loader and resource are disaptched.
+     *
+     * @memberof Loader
+     * @callback OnErrorSignal
+     * @param {Loader} loader - The loader the error happened in.
+     * @param {Resource} resource - The resource that caused the error.
+     */
+
+    /**
+     * When a load completes the loader and resource are disaptched.
+     *
+     * @memberof Loader
+     * @callback OnLoadSignal
+     * @param {Loader} loader - The loader that laoded the resource.
+     * @param {Resource} resource - The resource that has completed loading.
+     */
+
+    /**
+     * When the loader starts loading resources it dispatches this callback.
+     *
+     * @memberof Loader
+     * @callback OnStartSignal
+     * @param {Loader} loader - The loader that has started loading resources.
+     */
+
+    /**
+     * When the loader completes loading resources it dispatches this callback.
+     *
+     * @memberof Loader
+     * @callback OnCompleteSignal
+     * @param {Loader} loader - The loader that has finished loading resources.
+     */
+
+    /**
+     * Options for a call to `.add()`.
+     *
+     * @see Loader#add
+     *
+     * @typedef {object} IAddOptions
+     * @property {string} [name] - The name of the resource to load, if not passed the url is used.
+     * @property {string} [key] - Alias for `name`.
+     * @property {string} [url] - The url for this resource, relative to the baseUrl of this loader.
+     * @property {string|boolean} [crossOrigin] - Is this request cross-origin? Default is to
+     *      determine automatically.
+     * @property {number} [timeout=0] - A timeout in milliseconds for the load. If the load takes
+     *      longer than this time it is cancelled and the load is considered a failure. If this value is
+     *      set to `0` then there is no explicit timeout.
+     * @property {Resource.LOAD_TYPE} [loadType=Resource.LOAD_TYPE.XHR] - How should this resource
+     *      be loaded?
+     * @property {Resource.XHR_RESPONSE_TYPE} [xhrType=Resource.XHR_RESPONSE_TYPE.DEFAULT] - How
+     *      should the data being loaded be interpreted when using XHR?
+     * @property {Loader.OnCompleteSignal} [onComplete] - Callback to add an an onComplete signal istener.
+     * @property {Loader.OnCompleteSignal} [callback] - Alias for `onComplete`.
+     * @property {Resource.IMetadata} [metadata] - Extra configuration for middleware and the Resource object.
+     */
 
     /**
      * Adds a resource (or multiple resources) to the loader queue.
@@ -4695,20 +4728,11 @@ var Loader = function () {
      *     .add('http://...', { crossOrigin: true }, function () {});
      * ```
      *
-     * @param {string} [name] - The name of the resource to load, if not passed the url is used.
+     * @param {string|IAddOptions} [name] - The name of the resource to load, if not passed the url is used.
      * @param {string} [url] - The url for this resource, relative to the baseUrl of this loader.
-     * @param {object} [options] - The options for the load.
-     * @param {boolean} [options.crossOrigin] - Is this request cross-origin? Default is to determine automatically.
-     * @param {Resource.LOAD_TYPE} [options.loadType=Resource.LOAD_TYPE.XHR] - How should this resource be loaded?
-     * @param {Resource.XHR_RESPONSE_TYPE} [options.xhrType=Resource.XHR_RESPONSE_TYPE.DEFAULT] - How should
-     *      the data being loaded be interpreted when using XHR?
-     * @param {object} [options.metadata] - Extra configuration for middleware and the Resource object.
-     * @param {HTMLImageElement|HTMLAudioElement|HTMLVideoElement} [options.metadata.loadElement=null] - The
-     *      element to use for loading, instead of creating one.
-     * @param {boolean} [options.metadata.skipSource=false] - Skips adding source(s) to the load element. This
-     *      is useful if you want to pass in a `loadElement` that you already added load sources to.
-     * @param {function} [cb] - Function to call when this specific resource completes loading.
-     * @return {Loader} Returns itself.
+     * @param {IAddOptions} [options] - The options for the load.
+     * @param {Loader.OnCompleteSignal} [cb] - Function to call when this specific resource completes loading.
+     * @return {this} Returns itself.
      */
 
 
@@ -4762,7 +4786,7 @@ var Loader = function () {
         url = this._prepareUrl(url);
 
         // create the store the resource
-        this.resources[name] = new _Resource2.default(name, url, options);
+        this.resources[name] = new _Resource.Resource(name, url, options);
 
         if (typeof cb === 'function') {
             this.resources[name].onAfterMiddleware.once(cb);
@@ -4773,9 +4797,9 @@ var Loader = function () {
             var parent = options.parentResource;
             var incompleteChildren = [];
 
-            for (var _i = 0; _i < parent.children.length; ++_i) {
-                if (!parent.children[_i].isComplete) {
-                    incompleteChildren.push(parent.children[_i]);
+            for (var _i2 = 0; _i2 < parent.children.length; ++_i2) {
+                if (!parent.children[_i2].isComplete) {
+                    incompleteChildren.push(parent.children[_i2]);
                 }
             }
 
@@ -4785,8 +4809,8 @@ var Loader = function () {
             parent.children.push(this.resources[name]);
             parent.progressChunk = eachChunk;
 
-            for (var _i2 = 0; _i2 < incompleteChildren.length; ++_i2) {
-                incompleteChildren[_i2].progressChunk = eachChunk;
+            for (var _i3 = 0; _i3 < incompleteChildren.length; ++_i3) {
+                incompleteChildren[_i3].progressChunk = eachChunk;
             }
 
             this.resources[name].progressChunk = eachChunk;
@@ -4802,9 +4826,8 @@ var Loader = function () {
      * Sets up a middleware function that will run *before* the
      * resource is loaded.
      *
-     * @method before
      * @param {function} fn - The middleware function to register.
-     * @return {Loader} Returns itself.
+     * @return {this} Returns itself.
      */
 
 
@@ -4818,10 +4841,8 @@ var Loader = function () {
      * Sets up a middleware function that will run *after* the
      * resource is loaded.
      *
-     * @alias use
-     * @method after
      * @param {function} fn - The middleware function to register.
-     * @return {Loader} Returns itself.
+     * @return {this} Returns itself.
      */
 
 
@@ -4834,7 +4855,7 @@ var Loader = function () {
     /**
      * Resets the queue of the loader to prepare for a new load.
      *
-     * @return {Loader} Returns itself.
+     * @return {this} Returns itself.
      */
 
 
@@ -4867,7 +4888,7 @@ var Loader = function () {
      * Starts loading the queued resources.
      *
      * @param {function} [cb] - Optional callback that will be bound to the `complete` event.
-     * @return {Loader} Returns itself.
+     * @return {this} Returns itself.
      */
 
 
@@ -4882,24 +4903,35 @@ var Loader = function () {
             return this;
         }
 
-        // distribute progress chunks
-        var chunk = 100 / this._queue._tasks.length;
+        if (this._queue.idle()) {
+            this._onStart();
+            this._onComplete();
+        } else {
+            // distribute progress chunks
+            var numTasks = this._queue._tasks.length;
+            var chunk = MAX_PROGRESS / numTasks;
 
-        for (var i = 0; i < this._queue._tasks.length; ++i) {
-            this._queue._tasks[i].data.progressChunk = chunk;
+            for (var i = 0; i < this._queue._tasks.length; ++i) {
+                this._queue._tasks[i].data.progressChunk = chunk;
+            }
+
+            // notify we are starting
+            this._onStart();
+
+            // start loading
+            this._queue.resume();
         }
-
-        // update loading state
-        this.loading = true;
-
-        // notify of start
-        this.onStart.dispatch(this);
-
-        // start loading
-        this._queue.resume();
 
         return this;
     };
+
+    /**
+     * The number of resources to load concurrently.
+     *
+     * @member {number}
+     * @default 10
+     */
+
 
     /**
      * Prepares a url for usage based on the configuration of this object
@@ -4908,8 +4940,6 @@ var Loader = function () {
      * @param {string} url - The url to prepare.
      * @return {string} The prepared url.
      */
-
-
     Loader.prototype._prepareUrl = function _prepareUrl(url) {
         var parsedUrl = (0, _parseUri2.default)(url, { strictMode: true });
         var result = void 0;
@@ -4975,6 +5005,19 @@ var Loader = function () {
     };
 
     /**
+     * Called once loading has started.
+     *
+     * @private
+     */
+
+
+    Loader.prototype._onStart = function _onStart() {
+        this.progress = 0;
+        this.loading = true;
+        this.onStart.dispatch(this);
+    };
+
+    /**
      * Called once each resource has loaded.
      *
      * @private
@@ -4982,8 +5025,8 @@ var Loader = function () {
 
 
     Loader.prototype._onComplete = function _onComplete() {
+        this.progress = MAX_PROGRESS;
         this.loading = false;
-
         this.onComplete.dispatch(this, this.resources);
     };
 
@@ -5010,7 +5053,7 @@ var Loader = function () {
         }, function () {
             resource.onAfterMiddleware.dispatch(resource);
 
-            _this3.progress += resource.progressChunk;
+            _this3.progress = Math.min(MAX_PROGRESS, _this3.progress + resource.progressChunk);
             _this3.onProgress.dispatch(_this3, resource);
 
             if (resource.error) {
@@ -5023,21 +5066,79 @@ var Loader = function () {
 
             // do completion check
             if (_this3._queue.idle() && _this3._resourcesParsing.length === 0) {
-                _this3.progress = MAX_PROGRESS;
                 _this3._onComplete();
             }
         }, true);
     };
 
+    _createClass(Loader, [{
+        key: 'concurrency',
+        get: function get() {
+            return this._queue.concurrency;
+        }
+        // eslint-disable-next-line require-jsdoc
+        ,
+        set: function set(concurrency) {
+            this._queue.concurrency = concurrency;
+        }
+    }]);
+
     return Loader;
 }();
 
-exports.default = Loader;
+/**
+ * A default array of middleware to run before loading each resource.
+ * Each of these middlewares are added to any new Loader instances when they are created.
+ *
+ * @private
+ * @member {function[]}
+ */
+
+
+Loader._defaultBeforeMiddleware = [];
+
+/**
+ * A default array of middleware to run after loading each resource.
+ * Each of these middlewares are added to any new Loader instances when they are created.
+ *
+ * @private
+ * @member {function[]}
+ */
+Loader._defaultAfterMiddleware = [];
+
+/**
+ * Sets up a middleware function that will run *before* the
+ * resource is loaded.
+ *
+ * @static
+ * @param {function} fn - The middleware function to register.
+ * @return {Loader} Returns itself.
+ */
+Loader.pre = function LoaderPreStatic(fn) {
+    Loader._defaultBeforeMiddleware.push(fn);
+
+    return Loader;
+};
+
+/**
+ * Sets up a middleware function that will run *after* the
+ * resource is loaded.
+ *
+ * @static
+ * @param {function} fn - The middleware function to register.
+ * @return {Loader} Returns itself.
+ */
+Loader.use = function LoaderUseStatic(fn) {
+    Loader._defaultAfterMiddleware.push(fn);
+
+    return Loader;
+};
 
 },{"./Resource":33,"./async":34,"mini-signals":5,"parse-uri":7}],33:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
+exports.Resource = undefined;
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
@@ -5053,7 +5154,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-// tests is CORS is supported in XHR, if not we need to use XDR
+// tests if CORS is supported in XHR, if not we need to use XDR
 var useXdr = !!(window.XDomainRequest && !('withCredentials' in new XMLHttpRequest()));
 var tempAnchor = null;
 
@@ -5073,7 +5174,7 @@ function _noop() {} /* empty */
  * @class
  */
 
-var Resource = function () {
+var Resource = exports.Resource = function () {
     /**
      * Sets the load type to be used for a specific extension.
      *
@@ -5105,15 +5206,14 @@ var Resource = function () {
      * @param {object} [options] - The options for the load.
      * @param {string|boolean} [options.crossOrigin] - Is this request cross-origin? Default is to
      *      determine automatically.
+     * @param {number} [options.timeout=0] - A timeout in milliseconds for the load. If the load takes
+     *      longer than this time it is cancelled and the load is considered a failure. If this value is
+     *      set to `0` then there is no explicit timeout.
      * @param {Resource.LOAD_TYPE} [options.loadType=Resource.LOAD_TYPE.XHR] - How should this resource
      *      be loaded?
      * @param {Resource.XHR_RESPONSE_TYPE} [options.xhrType=Resource.XHR_RESPONSE_TYPE.DEFAULT] - How
      *      should the data being loaded be interpreted when using XHR?
-     * @param {object} [options.metadata] - Extra configuration for middleware and the Resource object.
-     * @param {HTMLImageElement|HTMLAudioElement|HTMLVideoElement} [options.metadata.loadElement=null] - The
-     *      element to use for loading, instead of creating one.
-     * @param {boolean} [options.metadata.skipSource=false] - Skips adding source(s) to the load element. This
-     *      is useful if you want to pass in a `loadElement` that you already added load sources to.
+     * @param {Resource.IMetadata} [options.metadata] - Extra configuration for middleware and the Resource object.
      */
 
 
@@ -5129,6 +5229,7 @@ var Resource = function () {
         /**
          * The state flags of this resource.
          *
+         * @private
          * @member {number}
          */
         this._flags = 0;
@@ -5139,24 +5240,24 @@ var Resource = function () {
         /**
          * The name of this resource.
          *
-         * @member {string}
          * @readonly
+         * @member {string}
          */
         this.name = name;
 
         /**
          * The url used to load this resource.
          *
-         * @member {string}
          * @readonly
+         * @member {string}
          */
         this.url = url;
 
         /**
          * The extension used to load this resource.
          *
-         * @member {string}
          * @readonly
+         * @member {string}
          */
         this.extension = this._getExtension();
 
@@ -5173,6 +5274,15 @@ var Resource = function () {
          * @member {string}
          */
         this.crossOrigin = options.crossOrigin === true ? 'anonymous' : options.crossOrigin;
+
+        /**
+         * A timeout in milliseconds for the load. If the load takes longer than this time
+         * it is cancelled and the load is considered a failure. If this value is set to `0`
+         * then there is no explicit timeout.
+         *
+         * @member {number}
+         */
+        this.timeout = options.timeout || 0;
 
         /**
          * The method of loading to use for this resource.
@@ -5194,20 +5304,15 @@ var Resource = function () {
          * Note that if you pass in a `loadElement`, the Resource class takes ownership of it.
          * Meaning it will modify it as it sees fit.
          *
-         * @member {object}
-         * @property {HTMLImageElement|HTMLAudioElement|HTMLVideoElement} [loadElement=null] - The
-         *  element to use for loading, instead of creating one.
-         * @property {boolean} [skipSource=false] - Skips adding source(s) to the load element. This
-         *  is useful if you want to pass in a `loadElement` that you already added load sources
-         *  to.
+         * @member {Resource.IMetadata}
          */
         this.metadata = options.metadata || {};
 
         /**
          * The error that occurred while loading (if any).
          *
-         * @member {Error}
          * @readonly
+         * @member {Error}
          */
         this.error = null;
 
@@ -5215,32 +5320,32 @@ var Resource = function () {
          * The XHR object that was used to load this resource. This is only set
          * when `loadType` is `Resource.LOAD_TYPE.XHR`.
          *
-         * @member {XMLHttpRequest}
          * @readonly
+         * @member {XMLHttpRequest}
          */
         this.xhr = null;
 
         /**
          * The child resources this resource owns.
          *
-         * @member {Resource[]}
          * @readonly
+         * @member {Resource[]}
          */
         this.children = [];
 
         /**
          * The resource type.
          *
-         * @member {Resource.TYPE}
          * @readonly
+         * @member {Resource.TYPE}
          */
         this.type = Resource.TYPE.UNKNOWN;
 
         /**
          * The progress chunk owned by this resource.
          *
-         * @member {number}
          * @readonly
+         * @member {number}
          */
         this.progressChunk = 0;
 
@@ -5260,6 +5365,14 @@ var Resource = function () {
          * @member {function}
          */
         this._onLoadBinding = null;
+
+        /**
+         * The timer for element loads to check if they timeout.
+         *
+         * @private
+         * @member {number}
+         */
+        this._elementTimer = 0;
 
         /**
          * The `complete` function bound to this resource's context.
@@ -5285,11 +5398,19 @@ var Resource = function () {
          */
         this._boundOnProgress = this._onProgress.bind(this);
 
+        /**
+         * The `_onTimeout` function bound to this resource's context.
+         *
+         * @private
+         * @member {function}
+         */
+        this._boundOnTimeout = this._onTimeout.bind(this);
+
         // xhr callbacks
         this._boundXhrOnError = this._xhrOnError.bind(this);
+        this._boundXhrOnTimeout = this._xhrOnTimeout.bind(this);
         this._boundXhrOnAbort = this._xhrOnAbort.bind(this);
         this._boundXhrOnLoad = this._xhrOnLoad.bind(this);
-        this._boundXdrOnTimeout = this._xdrOnTimeout.bind(this);
 
         /**
          * Dispatched when the resource beings to load.
@@ -5331,38 +5452,50 @@ var Resource = function () {
          * @member {Signal}
          */
         this.onAfterMiddleware = new _miniSignals2.default();
-
-        /**
-         * When the resource starts to load.
-         *
-         * @memberof Resource
-         * @callback OnStartSignal
-         * @param {Resource} resource - The resource that the event happened on.
-         */
-
-        /**
-         * When the resource reports loading progress.
-         *
-         * @memberof Resource
-         * @callback OnProgressSignal
-         * @param {Resource} resource - The resource that the event happened on.
-         * @param {number} percentage - The progress of the load in the range [0, 1].
-         */
-
-        /**
-         * When the resource finishes loading.
-         *
-         * @memberof Resource
-         * @callback OnCompleteSignal
-         * @param {Resource} resource - The resource that the event happened on.
-         */
     }
+
+    /**
+     * When the resource starts to load.
+     *
+     * @memberof Resource
+     * @callback OnStartSignal
+     * @param {Resource} resource - The resource that the event happened on.
+     */
+
+    /**
+     * When the resource reports loading progress.
+     *
+     * @memberof Resource
+     * @callback OnProgressSignal
+     * @param {Resource} resource - The resource that the event happened on.
+     * @param {number} percentage - The progress of the load in the range [0, 1].
+     */
+
+    /**
+     * When the resource finishes loading.
+     *
+     * @memberof Resource
+     * @callback OnCompleteSignal
+     * @param {Resource} resource - The resource that the event happened on.
+     */
+
+    /**
+     * @memberof Resource
+     * @typedef {object} IMetadata
+     * @property {HTMLImageElement|HTMLAudioElement|HTMLVideoElement} [loadElement=null] - The
+     *      element to use for loading, instead of creating one.
+     * @property {boolean} [skipSource=false] - Skips adding source(s) to the load element. This
+     *      is useful if you want to pass in a `loadElement` that you already added load sources to.
+     * @property {string|string[]} [mimeType] - The mime type to use for the source element
+     *      of a video/audio elment. If the urls are an array, you can pass this as an array as well
+     *      where each index is the mime type to use for the corresponding url index.
+     */
 
     /**
      * Stores whether or not this url is a data url.
      *
-     * @member {boolean}
      * @readonly
+     * @member {boolean}
      */
 
 
@@ -5371,36 +5504,8 @@ var Resource = function () {
      *
      */
     Resource.prototype.complete = function complete() {
-        // TODO: Clean this up in a wrapper or something...gross....
-        if (this.data && this.data.removeEventListener) {
-            this.data.removeEventListener('error', this._boundOnError, false);
-            this.data.removeEventListener('load', this._boundComplete, false);
-            this.data.removeEventListener('progress', this._boundOnProgress, false);
-            this.data.removeEventListener('canplaythrough', this._boundComplete, false);
-        }
-
-        if (this.xhr) {
-            if (this.xhr.removeEventListener) {
-                this.xhr.removeEventListener('error', this._boundXhrOnError, false);
-                this.xhr.removeEventListener('abort', this._boundXhrOnAbort, false);
-                this.xhr.removeEventListener('progress', this._boundOnProgress, false);
-                this.xhr.removeEventListener('load', this._boundXhrOnLoad, false);
-            } else {
-                this.xhr.onerror = null;
-                this.xhr.ontimeout = null;
-                this.xhr.onprogress = null;
-                this.xhr.onload = null;
-            }
-        }
-
-        if (this.isComplete) {
-            throw new Error('Complete called again for an already completed resource.');
-        }
-
-        this._setFlag(Resource.STATUS_FLAGS.COMPLETE, true);
-        this._setFlag(Resource.STATUS_FLAGS.LOADING, false);
-
-        this.onComplete.dispatch(this);
+        this._clearEvents();
+        this._finish();
     };
 
     /**
@@ -5418,6 +5523,9 @@ var Resource = function () {
 
         // store error
         this.error = new Error(message);
+
+        // clear events before calling aborts
+        this._clearEvents();
 
         // abort the actual loading
         if (this.xhr) {
@@ -5438,13 +5546,13 @@ var Resource = function () {
         }
 
         // done now.
-        this.complete();
+        this._finish();
     };
 
     /**
      * Kicks off loading of this resource. This method is asynchronous.
      *
-     * @param {function} [cb] - Optional callback to call once the resource is loaded.
+     * @param {Resource.OnCompleteSignal} [cb] - Optional callback to call once the resource is loaded.
      */
 
 
@@ -5514,7 +5622,7 @@ var Resource = function () {
 
 
     Resource.prototype._hasFlag = function _hasFlag(flag) {
-        return !!(this._flags & flag);
+        return (this._flags & flag) !== 0;
     };
 
     /**
@@ -5528,6 +5636,57 @@ var Resource = function () {
 
     Resource.prototype._setFlag = function _setFlag(flag, value) {
         this._flags = value ? this._flags | flag : this._flags & ~flag;
+    };
+
+    /**
+     * Clears all the events from the underlying loading source.
+     *
+     * @private
+     */
+
+
+    Resource.prototype._clearEvents = function _clearEvents() {
+        clearTimeout(this._elementTimer);
+
+        if (this.data && this.data.removeEventListener) {
+            this.data.removeEventListener('error', this._boundOnError, false);
+            this.data.removeEventListener('load', this._boundComplete, false);
+            this.data.removeEventListener('progress', this._boundOnProgress, false);
+            this.data.removeEventListener('canplaythrough', this._boundComplete, false);
+        }
+
+        if (this.xhr) {
+            if (this.xhr.removeEventListener) {
+                this.xhr.removeEventListener('error', this._boundXhrOnError, false);
+                this.xhr.removeEventListener('timeout', this._boundXhrOnTimeout, false);
+                this.xhr.removeEventListener('abort', this._boundXhrOnAbort, false);
+                this.xhr.removeEventListener('progress', this._boundOnProgress, false);
+                this.xhr.removeEventListener('load', this._boundXhrOnLoad, false);
+            } else {
+                this.xhr.onerror = null;
+                this.xhr.ontimeout = null;
+                this.xhr.onprogress = null;
+                this.xhr.onload = null;
+            }
+        }
+    };
+
+    /**
+     * Finalizes the load.
+     *
+     * @private
+     */
+
+
+    Resource.prototype._finish = function _finish() {
+        if (this.isComplete) {
+            throw new Error('Complete called again for an already completed resource.');
+        }
+
+        this._setFlag(Resource.STATUS_FLAGS.COMPLETE, true);
+        this._setFlag(Resource.STATUS_FLAGS.LOADING, false);
+
+        this.onComplete.dispatch(this);
     };
 
     /**
@@ -5559,6 +5718,10 @@ var Resource = function () {
         this.data.addEventListener('error', this._boundOnError, false);
         this.data.addEventListener('load', this._boundComplete, false);
         this.data.addEventListener('progress', this._boundOnProgress, false);
+
+        if (this.timeout) {
+            this._elementTimer = setTimeout(this._boundOnTimeout, this.timeout);
+        }
     };
 
     /**
@@ -5585,16 +5748,24 @@ var Resource = function () {
             return;
         }
 
+        if (this.crossOrigin) {
+            this.data.crossOrigin = this.crossOrigin;
+        }
+
         if (!this.metadata.skipSource) {
             // support for CocoonJS Canvas+ runtime, lacks document.createElement('source')
             if (navigator.isCocoonJS) {
                 this.data.src = Array.isArray(this.url) ? this.url[0] : this.url;
             } else if (Array.isArray(this.url)) {
+                var mimeTypes = this.metadata.mimeType;
+
                 for (var i = 0; i < this.url.length; ++i) {
-                    this.data.appendChild(this._createSource(type, this.url[i]));
+                    this.data.appendChild(this._createSource(type, this.url[i], Array.isArray(mimeTypes) ? mimeTypes[i] : mimeTypes));
                 }
             } else {
-                this.data.appendChild(this._createSource(type, this.url));
+                var _mimeTypes = this.metadata.mimeType;
+
+                this.data.appendChild(this._createSource(type, this.url, Array.isArray(_mimeTypes) ? _mimeTypes[0] : _mimeTypes));
             }
         }
 
@@ -5604,6 +5775,10 @@ var Resource = function () {
         this.data.addEventListener('canplaythrough', this._boundComplete, false);
 
         this.data.load();
+
+        if (this.timeout) {
+            this._elementTimer = setTimeout(this._boundOnTimeout, this.timeout);
+        }
     };
 
     /**
@@ -5624,6 +5799,8 @@ var Resource = function () {
         // set the request type and url
         xhr.open('GET', this.url, true);
 
+        xhr.timeout = this.timeout;
+
         // load json as text and parse it ourselves. We do this because some browsers
         // *cough* safari *cough* can't deal with it.
         if (this.xhrType === Resource.XHR_RESPONSE_TYPE.JSON || this.xhrType === Resource.XHR_RESPONSE_TYPE.DOCUMENT) {
@@ -5633,6 +5810,7 @@ var Resource = function () {
         }
 
         xhr.addEventListener('error', this._boundXhrOnError, false);
+        xhr.addEventListener('timeout', this._boundXhrOnTimeout, false);
         xhr.addEventListener('abort', this._boundXhrOnAbort, false);
         xhr.addEventListener('progress', this._boundOnProgress, false);
         xhr.addEventListener('load', this._boundXhrOnLoad, false);
@@ -5653,15 +5831,15 @@ var Resource = function () {
             this.xhrType = this._determineXhrType();
         }
 
-        var xdr = this.xhr = new XDomainRequest();
+        var xdr = this.xhr = new XDomainRequest(); // eslint-disable-line no-undef
 
         // XDomainRequest has a few quirks. Occasionally it will abort requests
         // A way to avoid this is to make sure ALL callbacks are set even if not used
         // More info here: http://stackoverflow.com/questions/15786966/xdomainrequest-aborts-post-on-ie-9
-        xdr.timeout = 5000;
+        xdr.timeout = this.timeout || 5000; // XDR needs a timeout value or it breaks in IE9
 
         xdr.onerror = this._boundXhrOnError;
-        xdr.ontimeout = this._boundXdrOnTimeout;
+        xdr.ontimeout = this._boundXhrOnTimeout;
         xdr.onprogress = this._boundOnProgress;
         xdr.onload = this._boundXhrOnLoad;
 
@@ -5689,7 +5867,7 @@ var Resource = function () {
 
     Resource.prototype._createSource = function _createSource(type, url, mime) {
         if (!mime) {
-            mime = type + '/' + url.substr(url.lastIndexOf('.') + 1);
+            mime = type + '/' + this._getExtension(url);
         }
 
         var source = document.createElement('source');
@@ -5713,7 +5891,7 @@ var Resource = function () {
     };
 
     /**
-     * Called if a load progress event fires for xhr/xdr.
+     * Called if a load progress event fires for an element or xhr/xdr.
      *
      * @private
      * @param {XMLHttpRequestProgressEvent|Event} event - Progress event.
@@ -5727,10 +5905,20 @@ var Resource = function () {
     };
 
     /**
+     * Called if a timeout event fires for an element.
+     *
+     * @private
+     */
+
+
+    Resource.prototype._onTimeout = function _onTimeout() {
+        this.abort('Load timed out.');
+    };
+
+    /**
      * Called if an error event fires for xhr/xdr.
      *
      * @private
-     * @param {XMLHttpRequestErrorEvent|Event} event - Error event.
      */
 
 
@@ -5741,27 +5929,29 @@ var Resource = function () {
     };
 
     /**
-     * Called if an abort event fires for xhr.
+     * Called if an error event fires for xhr/xdr.
      *
      * @private
-     * @param {XMLHttpRequestAbortEvent} event - Abort Event
+     */
+
+
+    Resource.prototype._xhrOnTimeout = function _xhrOnTimeout() {
+        var xhr = this.xhr;
+
+        this.abort(reqType(xhr) + ' Request timed out.');
+    };
+
+    /**
+     * Called if an abort event fires for xhr/xdr.
+     *
+     * @private
      */
 
 
     Resource.prototype._xhrOnAbort = function _xhrOnAbort() {
-        this.abort(reqType(this.xhr) + ' Request was aborted by the user.');
-    };
+        var xhr = this.xhr;
 
-    /**
-     * Called if a timeout event fires for xdr.
-     *
-     * @private
-     * @param {Event} event - Timeout event.
-     */
-
-
-    Resource.prototype._xdrOnTimeout = function _xdrOnTimeout() {
-        this.abort(reqType(this.xhr) + ' Request timed out.');
+        this.abort(reqType(xhr) + ' Request was aborted by the user.');
     };
 
     /**
@@ -5784,7 +5974,7 @@ var Resource = function () {
 
         // status can be 0 when using the `file://` protocol so we also check if a response is set.
         // If it has a response, we assume 200; otherwise a 0 status code with no contents is an aborted request.
-        if (status === STATUS_NONE && text.length > 0) {
+        if (status === STATUS_NONE && (text.length > 0 || xhr.responseType === Resource.XHR_RESPONSE_TYPE.BUFFER)) {
             status = STATUS_OK;
         }
         // handle IE9 bug: http://stackoverflow.com/questions/10046972/msie-returns-status-code-of-1223-for-ajax-request
@@ -5864,6 +6054,13 @@ var Resource = function () {
             return '';
         }
 
+        // A sandboxed iframe without the 'allow-same-origin' attribute will have a special
+        // origin designed not to match window.location.origin, and will always require
+        // crossOrigin requests regardless of whether the location matches.
+        if (window.origin !== window.location.origin) {
+            return 'anonymous';
+        }
+
         // default is window.location
         loc = loc || window.location;
 
@@ -5932,11 +6129,10 @@ var Resource = function () {
             ext = url.substring(slashIndex + 1, url.indexOf(';', slashIndex));
         } else {
             var queryStart = url.indexOf('?');
+            var hashStart = url.indexOf('#');
+            var index = Math.min(queryStart > -1 ? queryStart : url.length, hashStart > -1 ? hashStart : url.length);
 
-            if (queryStart !== -1) {
-                url = url.substring(0, queryStart);
-            }
-
+            url = url.substring(0, index);
             ext = url.substring(url.lastIndexOf('.') + 1);
         }
 
@@ -5972,7 +6168,6 @@ var Resource = function () {
             /* falls through */
             default:
                 return 'text/plain';
-
         }
     };
 
@@ -5986,8 +6181,8 @@ var Resource = function () {
          * Describes if this resource has finished loading. Is true when the resource has completely
          * loaded.
          *
-         * @member {boolean}
          * @readonly
+         * @member {boolean}
          */
 
     }, {
@@ -6000,8 +6195,8 @@ var Resource = function () {
          * Describes if this resource is currently loading. Is true when the resource starts loading,
          * and is false again when complete.
          *
-         * @member {boolean}
          * @readonly
+         * @member {boolean}
          */
 
     }, {
@@ -6023,7 +6218,6 @@ var Resource = function () {
  */
 
 
-exports.default = Resource;
 Resource.STATUS_FLAGS = {
     NONE: 0,
     DATA_URL: 1 << 0,
@@ -6184,6 +6378,11 @@ function reqType(xhr) {
     return xhr.toString().replace('object ', '');
 }
 
+// Backwards compat
+if (typeof module !== 'undefined') {
+    module.exports.default = Resource; // eslint-disable-line no-undef
+}
+
 },{"mini-signals":5,"parse-uri":7}],34:[function(require,module,exports){
 'use strict';
 
@@ -6193,12 +6392,22 @@ exports.queue = queue;
 /**
  * Smaller version of the async library constructs.
  *
+ * @namespace async
+ */
+
+/**
+ * Noop function
+ *
+ * @ignore
+ * @function
+ * @memberof async
  */
 function _noop() {} /* empty */
 
 /**
  * Iterates an array in series.
  *
+ * @memberof async
  * @param {Array.<*>} array - Array to iterate.
  * @param {function} iterator - Function to call for each element.
  * @param {function} callback - Function to call when done, or on error.
@@ -6230,6 +6439,8 @@ function eachSeries(array, iterator, callback, deferNext) {
 /**
  * Ensures a function is only called once.
  *
+ * @ignore
+ * @memberof async
  * @param {function} fn - The function to wrap.
  * @return {function} The wrapping function.
  */
@@ -6249,6 +6460,7 @@ function onlyOnce(fn) {
 /**
  * Async queue implementation,
  *
+ * @memberof async
  * @param {function} worker - The worker function to call for each task.
  * @param {number} concurrency - How many workers to run in parrallel.
  * @return {*} The async queue object.
@@ -6400,6 +6612,12 @@ exports.__esModule = true;
 exports.encodeBinary = encodeBinary;
 var _keyStr = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
 
+/**
+ * Encodes binary into base64.
+ *
+ * @param {string} input The input data to encode.
+ * @returns {string} The encoded base64 string
+ */
 function encodeBinary(input) {
     var output = '';
     var inx = 0;
@@ -6461,6 +6679,11 @@ function encodeBinary(input) {
     return output;
 }
 
+// Backwards compat
+if (typeof module !== 'undefined') {
+    module.exports.default = encodeBinary; // eslint-disable-line no-undef
+}
+
 },{}],36:[function(require,module,exports){
 'use strict';
 
@@ -6471,38 +6694,62 @@ function encodeBinary(input) {
 
 /* eslint-disable no-undef */
 
-var Loader = require('./Loader').default;
-var Resource = require('./Resource').default;
+var Loader = require('./Loader').Loader;
+var Resource = require('./Resource').Resource;
 var async = require('./async');
 var b64 = require('./b64');
 
+/**
+ *
+ * @static
+ * @memberof Loader
+ * @member {Class<Resource>}
+ */
 Loader.Resource = Resource;
+
+/**
+ *
+ * @static
+ * @memberof Loader
+ * @member {Class<async>}
+ */
 Loader.async = async;
+
+/**
+ *
+ * @static
+ * @memberof Loader
+ * @member {Class<encodeBinary>}
+ */
+Loader.encodeBinary = b64;
+
+/**
+ *
+ * @deprecated
+ * @see Loader.encodeBinary
+ *
+ * @static
+ * @memberof Loader
+ * @member {Class<encodeBinary>}
+ */
 Loader.base64 = b64;
 
 // export manually, and also as default
 module.exports = Loader;
-// export default Loader;
+
+// default & named export
+module.exports.Loader = Loader;
 module.exports.default = Loader;
 
 },{"./Loader":32,"./Resource":33,"./async":34,"./b64":35}],37:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
 exports.blobMiddlewareFactory = blobMiddlewareFactory;
 
 var _Resource = require('../../Resource');
 
-var _Resource2 = _interopRequireDefault(_Resource);
-
 var _b = require('../../b64');
-
-var _b2 = _interopRequireDefault(_b);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 var Url = window.URL || window.webkitURL;
 
@@ -6516,7 +6763,7 @@ function blobMiddlewareFactory() {
         }
 
         // if this was an XHR load of a blob
-        if (resource.xhr && resource.xhrType === _Resource2.default.XHR_RESPONSE_TYPE.BLOB) {
+        if (resource.xhr && resource.xhrType === _Resource.Resource.XHR_RESPONSE_TYPE.BLOB) {
             // if there is no blob support we probably got a binary string back
             if (!window.Blob || typeof resource.data === 'string') {
                 var type = resource.xhr.getResponseHeader('content-type');
@@ -6524,9 +6771,9 @@ function blobMiddlewareFactory() {
                 // this is an image, convert the binary string into a data url
                 if (type && type.indexOf('image') === 0) {
                     resource.data = new Image();
-                    resource.data.src = 'data:' + type + ';base64,' + _b2.default.encodeBinary(resource.xhr.responseText);
+                    resource.data.src = 'data:' + type + ';base64,' + (0, _b.encodeBinary)(resource.xhr.responseText);
 
-                    resource.type = _Resource2.default.TYPE.IMAGE;
+                    resource.type = _Resource.Resource.TYPE.IMAGE;
 
                     // wait until the image loads and then callback
                     resource.data.onload = function () {
@@ -6541,31 +6788,25 @@ function blobMiddlewareFactory() {
             }
             // if content type says this is an image, then we should transform the blob into an Image object
             else if (resource.data.type.indexOf('image') === 0) {
-                    var _ret = function () {
-                        var src = Url.createObjectURL(resource.data);
+                    var src = Url.createObjectURL(resource.data);
 
-                        resource.blob = resource.data;
-                        resource.data = new Image();
-                        resource.data.src = src;
+                    resource.blob = resource.data;
+                    resource.data = new Image();
+                    resource.data.src = src;
 
-                        resource.type = _Resource2.default.TYPE.IMAGE;
+                    resource.type = _Resource.Resource.TYPE.IMAGE;
 
-                        // cleanup the no longer used blob after the image loads
-                        // TODO: Is this correct? Will the image be invalid after revoking?
-                        resource.data.onload = function () {
-                            Url.revokeObjectURL(src);
-                            resource.data.onload = null;
+                    // cleanup the no longer used blob after the image loads
+                    // TODO: Is this correct? Will the image be invalid after revoking?
+                    resource.data.onload = function () {
+                        Url.revokeObjectURL(src);
+                        resource.data.onload = null;
 
-                            next();
-                        };
+                        next();
+                    };
 
-                        // next will be called on load.
-                        return {
-                            v: void 0
-                        };
-                    }();
-
-                    if ((typeof _ret === 'undefined' ? 'undefined' : _typeof(_ret)) === "object") return _ret.v;
+                    // next will be called on load.
+                    return;
                 }
         }
 
@@ -8145,7 +8386,7 @@ function checkPrecision(src, def) {
 
             return copy;
         }
-    } else if (src.substring(0, 9) !== 'precision') {
+    } else if (src.trim().substring(0, 10) !== '#extension' && src.trim().substring(0, 9) !== 'precision') {
         return 'precision ' + def + ' float;\n' + src;
     }
 
@@ -8261,7 +8502,7 @@ exports.__esModule = true;
  * @name VERSION
  * @type {string}
  */
-var VERSION = exports.VERSION = '4.5.3';
+var VERSION = exports.VERSION = '4.8.9';
 
 /**
  * Two Pi.
